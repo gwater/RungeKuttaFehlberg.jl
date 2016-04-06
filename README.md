@@ -4,16 +4,16 @@
 
 ## Description
 
-An implementation of the well-known Runge-Kutta-Fehlberg time integration method of 4th and 5th order (RKF45).
+An implementation of the well-known [Runge-Kutta-Fehlberg time integration method](https://dx.doi.org/10.1007/BF02241732) of 4th and 5th order (RKF45).
 The algorithm integrates differential equations of the form:
 
     dx / dt = f[x](t)
 
-Notably, f can be either a function or a functional of x. This is useful for certain types of partial differential equations (e.g. the heat equation).
+Notably, `f` can be either a function or a functional of `x`. This is useful for certain types of partial differential equations (e.g. the heat equation).
 
 ## Usage
 
-Import as usual:
+You import the package as usual:
 
     using RungeKuttaFehlberg
 
