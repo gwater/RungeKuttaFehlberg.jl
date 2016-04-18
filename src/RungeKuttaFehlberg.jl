@@ -83,6 +83,9 @@ function rkf45_step(f::Function,
         err = error(step_rk4, step_rk5)
     end
     dt *= safety * (tolerance / err)^(1 / 4)
+    if dt > 1
+        dt = 1.0
+    end
     return step_rk5, dt
 end
 
