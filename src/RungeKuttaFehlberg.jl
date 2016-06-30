@@ -73,14 +73,14 @@ function rkf45_step(f::Function,
                     t::Float64,
                     tolerance::Float64,
                     dt::Float64,
-                    error::Function = l1_metric,
+                    error_norm::Function = l1_metric,
                     safety::Float64 = 0.9)
     step_rk4, step_rk5 = calculate_steps(f, x, t, dt)
-    err = error(step_rk4, step_rk5)
+    err = error_norm(step_rk4, step_rk5)
     while err > tolerance
         dt *= safety * (tolerance / err)^(1 / 5)
         step_rk4, step_rk5 = calculate_steps(f, x, t, dt)
-        err = error(step_rk4, step_rk5)
+        err = error_norm(step_rk4, step_rk5)
     end
     dt *= safety * (tolerance / err)^(1 / 4)
     if dt > 1
