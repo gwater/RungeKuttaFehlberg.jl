@@ -1,3 +1,5 @@
+__precompile__()
+
 module RungeKuttaFehlberg
 
 
@@ -56,7 +58,7 @@ end
     rkf45_step(f, x, t, tolerance, dt[, error, safety])
 
 Computes the 5th-order Runge-Kutta estimate for `dx` in the differential equation `dx / dt = f(x, t)` with an adaptive time step method (RKF45).
-Returns the estimate for `dx` and the associated time step `dt`, in that order.
+Returns the estimate for `dx`, the associated time step `dt` and a suggestion for the next timestep `next_dt`, in that order.
 
 # Arguments
 
@@ -82,11 +84,9 @@ function rkf45_step(f::Function,
         step_rk4, step_rk5 = calculate_steps(f, x, t, dt)
         err = error_norm(step_rk4, step_rk5)
     end
-    dt *= safety * (tolerance / err)^(1 / 4)
-    if dt > 1
-        dt = 1.0
-    end
-    return step_rk5, dt
+    next_dt = dt * safety * (tolerance / err)^(1 / 4)
+    # Note that we need to catch cases where `err` approaches zero.
+    return step_rk5, dt, min(next_dt, 1.0)
 end
 
 end # module
