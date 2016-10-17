@@ -76,6 +76,7 @@ function rkf45_step(f::Function,
                     tolerance::Float64,
                     dt::Float64,
                     error_norm::Function = l1_metric,
+                    max_dt::Float64 = 1.0,
                     safety::Float64 = 0.9)
     step_rk4, step_rk5 = calculate_steps(f, x, t, dt)
     err = error_norm(step_rk4, step_rk5)
@@ -86,7 +87,7 @@ function rkf45_step(f::Function,
     end
     next_dt = dt * safety * (tolerance / err)^(1 / 4)
     # Note that we need to catch cases where `err` approaches zero.
-    return step_rk5, dt, min(next_dt, 1.0)
+    return step_rk5, dt, min(next_dt, max_dt)
 end
 
 end # module
