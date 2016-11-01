@@ -3,7 +3,7 @@ __precompile__()
 module RungeKuttaFehlberg
 
 
-export rkf45_step
+export rkf45_step, rkf45_step!, RKFBuffer
 
 
 """
@@ -47,8 +47,72 @@ function calculate_steps(f::Function, x, t::Float64, dt::Float64)
             return step_rk4, step_rk5
 end
 
+immutable RKFBuffer{T}
+    k1::T
+    k2::T
+    k3::T
+    k4::T
+    k5::T
+    k6::T
+    x_temp::T
+end
+RKFBuffer{T}(x::T) = RKFBuffer(similar(x), similar(x), similar(x), similar(x),
+                               similar(x), similar(x), similar(x))
 
-"Default metric for `rkf45_step()`, based on the `l1`-norm (aka 'Manhattan' distance)."
+"""
+    calulate_steps(f!, x, t, dt, b, dx4, dx5)
+
+Like calculate_steps, but takes a mutating function `f!(x, t, dx)` which writes
+the differential `dx` into its final argument.
+
+`x` must be of a mutable type (it will not be mutated) and there must be a
+`map!()` method for it.
+
+`b` is a pre-allocated `RKFBuffer` object (it will be mutated).
+The 4th and 5th order results will be written to `dx4` and  `dx5`, respectively.
+"""
+function calculate_steps!{T}(f!::Function, x::T, t::Float64, dt::Float64,
+                             b::RKFBuffer{T}, dx4::T, dx5::T)
+            f!(x, t, b.k1)
+            map!((x, k1) -> x + k1 * 0.35dt, b.x_temp, x, b.k1)
+            f!(b.x_temp, t + 0.25dt, b.k2)
+            map!(b.x_temp, x, b.k1, b.k2) do x, k1, k2
+                x + k1 * (dt * 3 / 32) + k2 * (dt * 9 / 32)
+            end
+            f!(b.x_temp, t + 0.375dt, b.k3)
+            map!(b.x_temp, x, b.k1, b.k2, b.k3) do x, k1, k2, k3
+                x + k1 * (dt * 1932 / 2197) - k2 * (dt * 7200 / 2197) +
+                    k3 * (dt * 7296 / 2197)
+            end
+            f!(b.x_temp, t + 12 / 13 * dt, b.k4)
+            map!(b.x_temp, x, b.k1, b.k2, b.k3, b.k4) do x, k1, k2, k3, k4
+                x + k1 * (dt * 439 / 216) - k2 * (dt * 8) +
+                    k3 * (dt * 3680 / 513) - k4 * (dt * 845 / 4104)
+            end
+            f!(b.x_temp, t + dt, b.k5)
+            map!(b.x_temp, x, b.k1, b.k2, b.k3, b.k4, b.k5) do x, k1, k2, k3,
+                                                               k4, k5
+                x - k1 * (dt * 8 / 27) + k2 * (dt * 2) -
+                    k3 * (dt * 3544 / 2565) + k4 * (dt * 1859 / 4104) -
+                    k5 * (dt * 11 / 40)
+            end
+            f!(b.x_temp, t + 0.5dt, b.k6)
+            map!(dx4, b.k1, b.k3, b.k4, b.k5) do k1, k3, k4, k5
+                k1 * (dt * 25 / 216) + k3 * (dt * 1408 / 2565) +
+                    k4 * (dt * 2197 / 4104) - k5 * 0.2dt
+            end
+            map!(dx5, b.k1, b.k3, b.k4, b.k5, b.k6) do k1, k3, k4, k5, k6
+                k1 * (dt * 16 / 135) + k3 * (dt * 6656 / 12825) +
+                    k4 * (dt * 28561 / 56430) - k5 * (dt * 9 / 50) +
+                    k6 * (dt * 2 / 55)
+            end
+            return dx4, dx5
+end
+
+"""
+Default metric for `rkf45_step()`, based on the `l1`-norm (aka 'Manhattan'
+distance).
+"""
 function l1_metric{T}(x1::T, x2::T)
     return vecnorm(x1 .- x2, 1)
 end
@@ -88,6 +152,35 @@ function rkf45_step(f::Function,
     next_dt = dt * safety * (tolerance / err)^(1 / 4)
     # Note that we need to catch cases where `err` approaches zero.
     return step_rk5, dt, min(next_dt, max_dt)
+end
+
+"""
+    rkf45_step!(f!, x, t, tol, dt, dx4, dx5, buffer[, err_norm, max_dt, safety])
+
+Like `rkf45_step`, but instead of dynamical allocations uses `buffer`, `dx4` and
+`dx5` to store data.
+"""
+function rkf45_step!{T}(f!::Function,
+                        x::T,
+                        t::Float64,
+                        tol::Float64,
+                        dt::Float64,
+                        dx4::T,
+                        dx5::T,
+                        buffer::RKFBuffer{T},
+                        err_norm::Function = l1_metric,
+                        max_dt::Float64 = 1.0,
+                        safety::Float64 = 0.9)
+    calculate_steps!(f!, x, t, dt, buffer, dx4, dx5)
+    err = err_norm(dx4, dx5)
+    while err > tol
+        dt *= safety * (tol / err)^(1 / 5)
+        calculate_steps!(f!, x, t, dt, buffer, dx4, dx5)
+        err = err_norm(dx4, dx5)
+    end
+    next_dt = dt * safety * (tol / err)^(1 / 4)
+    # Note that we need to catch cases where `err` approaches zero.
+    return dx5, dt, min(next_dt, max_dt)
 end
 
 end # module
