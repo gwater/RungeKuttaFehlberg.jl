@@ -3,8 +3,26 @@ __precompile__()
 module RungeKuttaFehlberg
 
 
-export rkf45_step, rkf45_step!, RKFBuffer
+export rkf45_step, rkf45_step!, RKFBuffer, RKFConfig
 
+
+"""
+    RKFConfig(norm, tolerance, max_dt[, safety])
+
+Container type for Fehlberg integration parameters (time adaptation).
+
+* `norm::Function`: a metric for the difference between two estimates of `dx`. Must take both estimates as arguments and return a positive (non-zero) number. (Default is the `l1`-norm.)
+* `tolerance::Float64`: target value for the error function, `dt` will be adapted to achieve this value
+* `max_dt::Float64`: maximum allowed timestep.
+* `safety::Float64`: parameter for the timestep estimator. Must be greater than 0 and smaller than 1. Small values lead to more conservative (smaller) timestep estimates which can improve convergence. (The default, 0.9, is almost always fine.)
+"""
+immutable RKFConfig
+    norm::Function
+    tolerance::Float64
+    max_dt::Float64
+    safety::Float64
+    RKFConfig(norm, tol, max_dt, safety = 0.9) = new(norm, tol, max_dt, safety)
+end
 
 """
     calulate_steps(f, x, t, dt)
@@ -117,9 +135,8 @@ function l1_metric{T}(x1::T, x2::T)
     return vecnorm(x1 .- x2, 1)
 end
 
-
 """
-    rkf45_step(f, x, t, tolerance, dt[, error, safety])
+    rkf45_step(f, x, t, tolerance, dt, config)
 
 Computes the 5th-order Runge-Kutta estimate for `dx` in the differential equation `dx / dt = f(x, t)` with an adaptive time step method (RKF45).
 Returns the estimate for `dx`, the associated time step `dt` and a suggestion for the next timestep `next_dt`, in that order.
@@ -129,33 +146,28 @@ Returns the estimate for `dx`, the associated time step `dt` and a suggestion fo
 * `f::Function`: the time derivative of `x`, must take two arguments: a state `x` and a time `t`. Should return a subtype of `typeof(x)`.
 * `x`: the state variable
 * `t::Float64`: the time associated with `x`
-* `tolerance::Float64`: target value for the error function, `dt` will be adapted to achieve this value
 * `dt::Float64`: estimate for an appropriate timestep, which should be the value for `dt` which was returned by the previous step. If `f` is well-behaved, `dt` will converge from any initial (positive) value after few steps.
-* `error::Function`: a metric for the difference between two estimates of `dx`. Must take both estimates as arguments and return a positive (non-zero) number. (Default is the `l1`-norm.)
-* `safety::Float64`: parameter for the timestep estimator. Must be greater than 0 and smaller than 1. Small values lead to more conservative (smaller) timestep estimates which can improve convergence. (The default, 0.9, is almost always fine.)
+* `config::RKFConfig`: container with integration parameters.
 """
 function rkf45_step(f::Function,
                     x,
                     t::Float64,
-                    tolerance::Float64,
                     dt::Float64,
-                    error_norm::Function = l1_metric,
-                    max_dt::Float64 = 1.0,
-                    safety::Float64 = 0.9)
+                    config::RKFConfig)
     step_rk4, step_rk5 = calculate_steps(f, x, t, dt)
-    err = error_norm(step_rk4, step_rk5)
-    while err > tolerance
-        dt *= safety * (tolerance / err)^(1 / 5)
+    err = config.norm(step_rk4, step_rk5)
+    while err > config.tolerance
+        dt *= config.safety * (config.tolerance / err)^(1 / 5)
         step_rk4, step_rk5 = calculate_steps(f, x, t, dt)
-        err = error_norm(step_rk4, step_rk5)
+        err = config.norm(step_rk4, step_rk5)
     end
-    next_dt = dt * safety * (tolerance / err)^(1 / 4)
+    next_dt = dt * config.safety * (config.tolerance / err)^(1 / 4)
     # Note that we need to catch cases where `err` approaches zero.
-    return step_rk5, dt, min(next_dt, max_dt)
+    return step_rk5, dt, min(next_dt, config.max_dt)
 end
 
 """
-    rkf45_step!(f!, x, t, tol, dt, dx4, dx5, buffer[, err_norm, max_dt, safety])
+    rkf45_step!(f!, x, t, dt, config, dx4, dx5, buffer)
 
 Like `rkf45_step`, but instead of dynamical allocations uses `buffer`, `dx4` and
 `dx5` to store data.
@@ -163,24 +175,21 @@ Like `rkf45_step`, but instead of dynamical allocations uses `buffer`, `dx4` and
 function rkf45_step!{T}(f!::Function,
                         x::T,
                         t::Float64,
-                        tol::Float64,
                         dt::Float64,
+                        config::RKFConfig,
                         dx4::T,
                         dx5::T,
-                        buffer::RKFBuffer{T},
-                        err_norm::Function = l1_metric,
-                        max_dt::Float64 = 1.0,
-                        safety::Float64 = 0.9)
+                        buffer::RKFBuffer{T})
     calculate_steps!(f!, x, t, dt, buffer, dx4, dx5)
-    err = err_norm(dx4, dx5)
-    while err > tol
-        dt *= safety * (tol / err)^(1 / 5)
+    err = config.norm(dx4, dx5)
+    while err > config.tolerance
+        dt *= config.safety * (config.tolerance / err)^(1 / 5)
         calculate_steps!(f!, x, t, dt, buffer, dx4, dx5)
-        err = err_norm(dx4, dx5)
+        err = config.norm(dx4, dx5)
     end
-    next_dt = dt * safety * (tol / err)^(1 / 4)
+    next_dt = dt * config.safety * (config.tolerance / err)^(1 / 4)
     # Note that we need to catch cases where `err` approaches zero.
-    return dx5, dt, min(next_dt, max_dt)
+    return dx5, dt, min(next_dt, config.max_dt)
 end
 
 end # module
