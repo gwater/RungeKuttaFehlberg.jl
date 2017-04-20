@@ -11,10 +11,16 @@ export rkf45_step, rkf45_step!, RKFBuffer, RKFConfig
 
 Container type for Fehlberg integration parameters (time adaptation).
 
-* `norm::Function`: a metric for the difference between two estimates of `dx`. Must take both estimates as arguments and return a positive (non-zero) number. (Default is the `l1`-norm.)
-* `tolerance::Float64`: target value for the error function, `dt` will be adapted to achieve this value
+* `norm::Function`: a metric for the difference between two estimates of `dx`.
+  Must take both estimates as arguments and return a positive (non-zero) number.
+  (Default is the `l1`-norm.)
+* `tolerance::Float64`: target value for the error function, `dt` will be
+  adapted to achieve this value
 * `max_dt::Float64`: maximum allowed timestep.
-* `safety::Float64`: parameter for the timestep estimator. Must be greater than 0 and smaller than 1. Small values lead to more conservative (smaller) timestep estimates which can improve convergence. (The default, 0.9, is almost always fine.)
+* `safety::Float64`: parameter for the timestep estimator. Must be greater than
+  zero and smaller than one. Small values lead to more conservative (smaller)
+  timestep estimates which can improve convergence. (The default, 0.9, is almost
+  always fine.)
 """
 immutable RKFConfig
     norm::Function
@@ -81,7 +87,8 @@ RKFBuffer{T}(x::T) = RKFBuffer(similar(x), similar(x), similar(x), similar(x),
     calulate_steps(f!, x, t, dt, b, dx4, dx5)
 
 Like calculate_steps, but takes a mutating function `f!(x, t, dx)` which writes
-the differential `dx` into its final argument.
+the differential `dx` into its final argument.  Must not have any other side
+effects.
 
 `x` must be of a mutable type (it will not be mutated) and there must be a
 `map!()` method for it.
@@ -138,15 +145,21 @@ end
 """
     rkf45_step(f, x, t, tolerance, dt, config)
 
-Computes the 5th-order Runge-Kutta estimate for `dx` in the differential equation `dx / dt = f(x, t)` with an adaptive time step method (RKF45).
-Returns the estimate for `dx`, the associated time step `dt` and a suggestion for the next timestep `next_dt`, in that order.
+Computes the 5th-order Runge-Kutta estimate for `dx` in the differential
+equation `dx / dt = f(x, t)` with an adaptive time step method (RKF45).
+Returns the estimate for `dx`, the associated time step `dt` and a suggestion
+for the next timestep `next_dt`, in that order.
 
 # Arguments
 
-* `f::Function`: the time derivative of `x`, must take two arguments: a state `x` and a time `t`. Should return a subtype of `typeof(x)`.
+* `f::Function`: the time derivative of `x`, must take two arguments: a state
+  `x` and a time `t`. Should return a subtype of `typeof(x)`. Must not have any
+  side effects.
 * `x`: the state variable
 * `t::Float64`: the time associated with `x`
-* `dt::Float64`: estimate for an appropriate timestep, which should be the value for `dt` which was returned by the previous step. If `f` is well-behaved, `dt` will converge from any initial (positive) value after few steps.
+* `dt::Float64`: estimate for an appropriate timestep, which should be the value
+  for `dt` which was returned by the previous step. If `f` is well-behaved, `dt`
+  will converge from any initial (positive) value after few steps.
 * `config::RKFConfig`: container with integration parameters.
 """
 function rkf45_step(f::Function,
