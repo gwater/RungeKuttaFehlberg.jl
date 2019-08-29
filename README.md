@@ -2,6 +2,8 @@
 
 [![Build Status](https://travis-ci.org/gwater/RungeKuttaFehlberg.jl.svg?branch=master)](https://travis-ci.org/gwater/RungeKuttaFehlberg.jl)
 
+*This package is obsolete and archived. Please use [DifferentialEquations.jl](https://github.com/JuliaDiffEq/DifferentialEquations.jl).*
+
 ## Description
 
 An implementation of the well-known [Runge-Kutta-Fehlberg time integration method](https://dx.doi.org/10.1007/BF02241732) of 4th and 5th order (RKF45).
